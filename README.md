@@ -3,6 +3,7 @@
 
 ## Requisitos
 - Cluster Kubernetes 1.20 ou superior
+- Versão do Elastic e demais componentes utilizada neste exemplo: 7.17.9
 - Kubectl configurado para conexão com cluster e execução dos manifestos
 - Um storage-class configurado (este exemplo utiliza longhorn)
 ## Diagrama
