@@ -1,0 +1,133 @@
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: apm-server-config
+  namespace: elastic-stack
+  labels:
+    k8s-app: apm-server
+data:
+  apm-server.yml: |-
+    apm-server:
+      host: "0.0.0.0:8200"
+
+      rum:
+        enabled: true
+        event_rate.limit: 300
+        event_rate.lru_size: 1000
+        allow_origins: ['*']
+        library_pattern: "node_modules|bower_components|~"
+        exclude_from_grouping: "^/webpack"
+        source_mapping.enabled: true
+        source_mapping.cache.expiration: 5m
+        source_mapping.index_pattern: "apm-*-sourcemap*"
+
+      frontend:
+        enabled: false
+
+    setup.template.settings:
+      index:
+        number_of_shards: 1
+        codec: best_compression
+
+    output.elasticsearch:
+      enabled: true
+      protocol: "http"
+      ssl.enabled: false
+      hosts: ["${ELASTICSEARCH_HOST:elasticsearch}:${ELASTICSEARCH_PORT:9200}"]
+      username: ${ELASTICSEARCH_USERNAME}
+      password: ${ELASTICSEARCH_PASSWORD}
+
+    setup.kibana:
+      host: '${KIBANA_HOST:kibana}:${KIBANA_PORT:5601}'
+      path: ${KIBANA_PATH}
+---
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: apm-server
+  namespace: elastic-stack
+spec:
+  serviceName: apm-server
+  replicas: 1
+  selector:
+    matchLabels:
+      app: apm-server
+  template:
+    metadata:
+      labels:
+        app: apm-server
+    spec:
+      containers:
+      - name: apm-server
+        image: docker.elastic.co/apm/apm-server:7.17.9
+        imagePullPolicy: IfNotPresent        
+        ports:
+        - containerPort: 8200
+          name: apm-port
+        env: 
+        - name: ELASTICSEARCH_HOST
+          valueFrom:
+            secretKeyRef:
+              name: elastic-secret
+              key: ELASTICSEARCH_HOST
+        - name: ELASTICSEARCH_PORT
+          valueFrom:
+            secretKeyRef:
+              name: elastic-secret
+              key: ELASTICSEARCH_PORT
+        - name: ELASTICSEARCH_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: elastic-secret
+              key: ELASTIC_USERNAME
+        - name: ELASTICSEARCH_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: elastic-secret
+              key: ELASTIC_PASSWORD
+        - name: KIBANA_HOST
+          valueFrom:
+            secretKeyRef:
+              name: elastic-secret
+              key: KIBANA_HOST
+        - name: KIBANA_PORT
+          value: "5601"
+        - name: KIBANA_PATH
+          value: /monitoring/ui
+        volumeMounts:
+        - name: apm-server-config
+          mountPath: /usr/share/apm-server/apm-server.yml
+          readOnly: true
+          subPath: apm-server.yml
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+          requests:
+            cpu: 500m
+            memory: 1Gi
+      volumes:
+      - name: apm-server-config
+        configMap:
+          name: apm-server-config
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: apm-server
+  namespace: elastic-stack
+  labels:
+    app: apm-server
+spec:
+  ports:
+  - port: 8200
+    targetPort: 8200
+    name: http    
+  selector:
+    app: apm-server
+  type: ClusterIP
+  clusterIP: None
+---
