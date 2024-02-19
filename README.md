@@ -62,3 +62,5 @@ Para este exemplo o Volume Persistent criado foi baseado no storage-class do log
 
 ![result](/images/persistent-volume.png)  
 
+## Autenticação
+As credenciais do Elastic esta na elastic-secret
